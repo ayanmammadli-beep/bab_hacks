@@ -91,3 +91,118 @@ enum PositionStatus {
   OPEN
   CLOSED
 }
+
+// --- Off-chain group prediction markets ---
+
+model PredictionMarketProposal {
+  id                    String    @id @default(cuid())
+  groupChatId           String
+  description           String
+  eventDeadline         DateTime
+  initialLiquidityAmount Decimal  @db.Decimal(36, 18)
+  proposer              String
+  approvalWeight        Decimal   @db.Decimal(10, 4) @default(0)
+  rejectWeight          Decimal   @db.Decimal(10, 4) @default(0)
+  status                PredictionProposalStatus @default(VOTING)
+  deadline              DateTime  // voting deadline
+  createdAt             DateTime  @default(now())
+
+  votes PredictionMarketProposalVote[]
+
+  @@index([groupChatId])
+  @@index([status, deadline])
+  @@map("prediction_market_proposals")
+}
+
+enum PredictionProposalStatus {
+  VOTING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+model PredictionMarketProposalVote {
+  id         String   @id @default(cuid())
+  proposalId String
+  userId     String
+  vote       String   // approve | reject
+  weight     Decimal  @db.Decimal(10, 4)
+
+  proposal PredictionMarketProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@unique([proposalId, userId])
+  @@index([proposalId])
+  @@map("prediction_market_proposal_votes")
+}
+
+model PredictionMarket {
+  id                    String    @id @default(cuid())
+  proposalId            String?   @unique
+  groupChatId           String
+  description           String
+  eventDeadline         DateTime
+  initialLiquidityAmount Decimal  @db.Decimal(36, 18)
+  status                PredictionMarketStatus @default(ACTIVE)
+  createdAt             DateTime  @default(now())
+  resolutionOpenedAt    DateTime?
+  resolvedAt            DateTime?
+  winningSide           String?   // YES | NO
+
+  bets    PredictionBet[]
+  resolutionVotes PredictionResolutionVote[]
+  payouts PredictionPayout[]
+
+  @@index([groupChatId])
+  @@index([status])
+  @@index([eventDeadline])
+  @@map("prediction_markets")
+}
+
+enum PredictionMarketStatus {
+  ACTIVE          // betting open
+  RESOLUTION_OPEN // 24h window
+  RESOLVED
+}
+
+model PredictionBet {
+  id        String   @id @default(cuid())
+  marketId  String
+  userId    String
+  amount    Decimal   @db.Decimal(36, 18)
+  side      String    // YES | NO
+  createdAt DateTime @default(now())
+
+  market PredictionMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([marketId])
+  @@index([marketId, userId])
+  @@map("prediction_bets")
+}
+
+model PredictionResolutionVote {
+  id        String   @id @default(cuid())
+  marketId  String
+  userId    String
+  outcome   String   // YES | NO
+  createdAt DateTime @default(now())
+
+  market PredictionMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@unique([marketId, userId])
+  @@index([marketId])
+  @@map("prediction_resolution_votes")
+}
+
+model PredictionPayout {
+  id        String   @id @default(cuid())
+  marketId  String
+  userId    String
+  amount    Decimal   @db.Decimal(36, 18)
+  createdAt DateTime  @default(now())
+
+  market PredictionMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([marketId])
+  @@index([marketId, userId])
+  @@map("prediction_payouts")
+}
