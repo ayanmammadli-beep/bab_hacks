@@ -1,0 +1,19 @@
+{
+  "name": "linq-imessage-bot",
+  "version": "1.0.0",
+  "description": "iMessage interface layer for Group Chat Hedge Funds via LINQ API",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}

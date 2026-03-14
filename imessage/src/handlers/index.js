@@ -1,0 +1,9 @@
+const createFund = require('./createFund');
+const deposit = require('./deposit');
+const proposeTrade = require('./proposeTrade');
+const vote = require('./vote');
+const portfolio = require('./portfolio');
+const chatCreated = require('./chatCreated');
+const reaction = require('./reaction');
+
+module.exports = { createFund, deposit, proposeTrade, vote, portfolio, chatCreated, reaction };
