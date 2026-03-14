@@ -10,6 +10,7 @@ function paramStr(val: string | string[]): string {
 }
 
 // POST /settlement/settle — Settle a single proposal
+// If returnMultiplier is omitted and a Liquid position exists, P&L is computed automatically
 router.post("/settle", async (req: Request, res: Response) => {
   try {
     const { proposalId, outcome, returnMultiplier } = req.body;
@@ -23,7 +24,7 @@ router.post("/settle", async (req: Request, res: Response) => {
     const result = await settleProposal(
       proposalId,
       outcome,
-      parseFloat(returnMultiplier ?? "1.0")
+      returnMultiplier != null ? parseFloat(returnMultiplier) : undefined
     );
     res.json(result);
   } catch (err: any) {

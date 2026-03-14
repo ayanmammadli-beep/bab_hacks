@@ -7,8 +7,11 @@ import {
   recordWithdrawal,
   getGroupBalance,
   getVotingWeights,
+  getGroupVaultInfo,
+  detectDeposits,
 } from "../services/vault";
-import { sendXRP, Wallet } from "../services/xrpl";
+import { sendXRP, Wallet, getAccountBalance } from "../services/xrpl";
+import { tallyVotes } from "../services/voting";
 
 const router = Router();
 
@@ -30,6 +33,12 @@ router.post("/", async (req: Request, res: Response) => {
       name: group.name,
       vaultAddress: group.vaultWalletAddress,
       threshold: group.threshold,
+      sav: group.savVaultId ? {
+        vaultId: group.savVaultId,
+        vaultAccount: group.savVaultAccount,
+        mptIssuanceId: group.mptIssuanceId,
+        shareMPTId: group.savShareMPTId,
+      } : null,
       createdAt: group.createdAt,
     });
   } catch (err: any) {
@@ -103,7 +112,7 @@ router.post("/:id/deposit", async (req: Request, res: Response) => {
       return;
     }
 
-    const member = recordDeposit(gid, memberId, parseFloat(amount));
+    const { member, savTxHash } = await recordDeposit(gid, memberId, parseFloat(amount));
     const balance = await getGroupBalance(gid);
 
     res.json({
@@ -112,6 +121,7 @@ router.post("/:id/deposit", async (req: Request, res: Response) => {
         handle: member.handle,
         depositedAmount: member.depositedAmount,
       },
+      savDeposit: savTxHash ? { txHash: savTxHash } : null,
       groupBalance: balance,
     });
   } catch (err: any) {
@@ -141,6 +151,18 @@ router.post("/:id/withdraw", async (req: Request, res: Response) => {
       return;
     }
 
+    // Guard: ensure withdrawal doesn't exceed vault's available (unlocked) XRP
+    const activeEscrows = store.getActiveEscrowsByGroup(gid);
+    const lockedXRP = activeEscrows.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+    const vaultBalanceXRP = parseFloat(await getAccountBalance(group.vaultWalletAddress));
+    const availableXRP = vaultBalanceXRP - lockedXRP;
+    if (parseFloat(amount) > availableXRP) {
+      res.status(400).json({
+        error: `Insufficient available funds. Vault: ${vaultBalanceXRP} XRP, locked in escrow: ${lockedXRP} XRP, available: ${availableXRP.toFixed(6)} XRP`,
+      });
+      return;
+    }
+
     const vaultWallet = Wallet.fromSeed(group.vaultWalletSeed);
     const txHash = await sendXRP(
       vaultWallet,
@@ -148,11 +170,12 @@ router.post("/:id/withdraw", async (req: Request, res: Response) => {
       parseFloat(amount).toFixed(6)
     );
 
-    const member = recordWithdrawal(gid, memberId, parseFloat(amount));
+    const { member, savTxHash } = await recordWithdrawal(gid, memberId, parseFloat(amount));
     const balance = await getGroupBalance(gid);
 
     res.json({
       txHash,
+      savWithdraw: savTxHash ? { txHash: savTxHash } : null,
       member: {
         id: member.id,
         handle: member.handle,
@@ -180,6 +203,98 @@ router.get("/:id/voting-weights", (req: Request, res: Response) => {
   try {
     const weights = getVotingWeights(paramStr(req.params.id));
     res.json(weights);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /groups/:id/vault — Get on-chain SAV state (XLS-65)
+router.get("/:id/vault", async (req: Request, res: Response) => {
+  try {
+    const info = await getGroupVaultInfo(paramStr(req.params.id));
+    res.json(info);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /groups/:id/portfolio — Single-call summary for the iMessage bot
+router.get("/:id/portfolio", async (req: Request, res: Response) => {
+  try {
+    const gid = paramStr(req.params.id);
+    const group = store.getGroup(gid);
+    if (!group) {
+      res.status(404).json({ error: "Group not found" });
+      return;
+    }
+
+    const balance = await getGroupBalance(gid);
+    const activeEscrows = store.getActiveEscrowsByGroup(gid);
+    const lockedXRP = activeEscrows.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+    const availableXRP = parseFloat(balance.xrpBalance) - lockedXRP;
+
+    const allProposals = store.getProposalsByGroup(gid);
+    const openProposals = allProposals.filter((p) => p.status === "open");
+    const activePositions = allProposals.filter((p) => p.status === "executed");
+    const recentSettled = allProposals
+      .filter((p) => p.status === "settled")
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 3);
+
+    res.json({
+      group: {
+        id: group.id,
+        name: group.name,
+        vaultAddress: group.vaultWalletAddress,
+        threshold: group.threshold,
+        memberCount: group.members.length,
+      },
+      vault: {
+        totalXRP: balance.xrpBalance,
+        lockedXRP,
+        availableXRP: availableXRP < 0 ? 0 : availableXRP,
+      },
+      memberShares: balance.members,
+      openProposals: openProposals.map((p) => ({
+        id: p.id,
+        description: p.description,
+        market: p.market,
+        side: p.side,
+        amount: p.amount,
+        quantity: p.quantity,
+        expiresAt: p.expiresAt,
+        tally: tallyVotes(p),
+      })),
+      activePositions: activePositions.map((p) => ({
+        id: p.id,
+        description: p.description,
+        market: p.market,
+        side: p.side,
+        amount: p.amount,
+        quantity: p.quantity,
+        liquidOrderId: p.liquidOrderId,
+        liquidSymbol: p.liquidSymbol,
+        liquidEntryPrice: p.liquidEntryPrice,
+      })),
+      recentSettled: recentSettled.map((p) => ({
+        id: p.id,
+        market: p.market,
+        side: p.side,
+        amount: p.amount,
+        status: p.status,
+        createdAt: p.createdAt,
+      })),
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /groups/:id/detect-deposits — Scan chain for incoming deposits by destination tag
+router.post("/:id/detect-deposits", async (req: Request, res: Response) => {
+  try {
+    const result = await detectDeposits(paramStr(req.params.id));
+    res.json(result);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }

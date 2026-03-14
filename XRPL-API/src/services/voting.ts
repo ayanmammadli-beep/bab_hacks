@@ -14,6 +14,7 @@ export function createProposal(params: {
   market: string;
   side: "long" | "short" | "yes" | "no";
   amount: number;
+  quantity?: number;
 }): Proposal {
   const group = store.getGroup(params.groupId);
   if (!group) throw new Error("Group not found");
@@ -41,6 +42,7 @@ export function createProposal(params: {
     market: params.market,
     side: params.side,
     amount: params.amount,
+    quantity: params.quantity,
     status: "open",
     votes: [],
     createdAt: now.toISOString(),

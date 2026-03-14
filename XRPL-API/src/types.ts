@@ -3,9 +3,16 @@ export interface Group {
   name: string;
   vaultWalletAddress: string;
   vaultWalletSeed: string;
-  threshold: number; // threshold for proposal to be approved
+  threshold: number;
   members: Member[];
   createdAt: string;
+  // Single Asset Vault (XLS-65)
+  mptIssuanceId?: string;
+  savVaultId?: string;
+  savVaultAccount?: string;
+  savShareMPTId?: string;
+  // On-chain deposit tracking
+  processedDepositHashes?: string[];
 }
 
 export interface Member { // member of groupchat
@@ -28,9 +35,13 @@ export interface Proposal { // trade proposal
   amount: number;
   status: "open" | "approved" | "rejected" | "executed" | "settled" | "cancelled";
   votes: Vote[];
+  quantity?: number;
   escrowSequence?: number;
   escrowCondition?: string;
   escrowFulfillment?: string;
+  liquidOrderId?: string;
+  liquidSymbol?: string;
+  liquidEntryPrice?: number;
   createdAt: string;
   expiresAt: string;
 }

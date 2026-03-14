@@ -3,6 +3,7 @@ import { store } from "../store";
 import { createProposal, castVote, tallyVotes, expireStaleProposals } from "../services/voting";
 import { createEscrow } from "../services/escrow";
 import { getVotingWeights } from "../services/vault";
+import { liquidPlaceOrder, liquidGetTicker, isLiquidConfigured } from "../services/liquid";
 
 const router = Router();
 
@@ -13,7 +14,7 @@ function paramStr(val: string | string[]): string {
 // POST /proposals — Create a trade proposal
 router.post("/", (req: Request, res: Response) => {
   try {
-    const { groupId, proposerId, type, description, market, side, amount } = req.body;
+    const { groupId, proposerId, type, description, market, side, amount, quantity } = req.body;
     if (!groupId || !proposerId || !type || !market || !side || !amount) {
       res.status(400).json({
         error: "groupId, proposerId, type, market, side, and amount are required",
@@ -29,6 +30,7 @@ router.post("/", (req: Request, res: Response) => {
       market,
       side,
       amount: parseFloat(amount),
+      quantity: quantity != null ? parseFloat(quantity) : undefined,
     });
 
     const weights = getVotingWeights(groupId);
@@ -41,6 +43,7 @@ router.post("/", (req: Request, res: Response) => {
         market: proposal.market,
         side: proposal.side,
         amount: proposal.amount,
+        quantity: proposal.quantity,
         status: proposal.status,
         expiresAt: proposal.expiresAt,
       },
@@ -69,11 +72,46 @@ router.post("/:id/vote", async (req: Request, res: Response) => {
 
     if (result.quorumReached) {
       const proposal = result.proposal;
-      const escrow = await createEscrow({
-        groupId: proposal.groupId,
-        proposalId: proposal.id,
-        amountXRP: proposal.amount.toFixed(6),
-      });
+
+      // 1. Lock funds on XRPL
+      let escrow;
+      try {
+        escrow = await createEscrow({
+          groupId: proposal.groupId,
+          proposalId: proposal.id,
+          amountXRP: proposal.amount.toFixed(6),
+        });
+      } catch (escrowErr: any) {
+        // Revert proposal back to open so the group isn't deadlocked
+        proposal.status = "open";
+        store.saveProposal(proposal);
+        throw escrowErr;
+      }
+
+      // 2. Execute trade on Liquid (if configured)
+      let liquidOrder: any = null;
+      if (isLiquidConfigured() && proposal.type === "crypto") {
+        try {
+          const side = (proposal.side === "long" || proposal.side === "yes") ? "buy" : "sell";
+          const symbol = `${proposal.market}-PERP`;
+          const ticker = await liquidGetTicker(symbol);
+          const entryPrice = Number(ticker.mark_price);
+
+          liquidOrder = await liquidPlaceOrder({
+            symbol,
+            side,
+            orderType: "market",
+            quantity: proposal.quantity ?? proposal.amount,
+          });
+
+          proposal.liquidOrderId = liquidOrder.order_id ?? undefined;
+          proposal.liquidSymbol = symbol;
+          proposal.liquidEntryPrice = entryPrice;
+          store.saveProposal(proposal);
+        } catch (err: any) {
+          console.warn(`Liquid order failed (escrow still active): ${err.message}`);
+        }
+      }
 
       res.json({
         status: "approved_and_executed",
@@ -92,7 +130,12 @@ router.post("/:id/vote", async (req: Request, res: Response) => {
           amount: escrow.amount,
           status: escrow.status,
         },
-        message: `Trade approved! Escrow created for ${proposal.amount} XRP. Funds locked on XRPL.`,
+        liquidOrder: liquidOrder
+          ? { orderId: liquidOrder.order_id, symbol: liquidOrder.symbol, status: liquidOrder.status }
+          : null,
+        message: liquidOrder
+          ? `Trade approved! Escrow locked ${proposal.amount} XRP on XRPL. Liquid order placed: ${liquidOrder.order_id}`
+          : `Trade approved! Escrow created for ${proposal.amount} XRP. Funds locked on XRPL.`,
       });
       return;
     }

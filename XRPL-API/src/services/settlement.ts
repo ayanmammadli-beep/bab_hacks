@@ -3,17 +3,49 @@ import { store } from "../store";
 import { SettlementResult } from "../types";
 import { sendXRP } from "./xrpl";
 import { finishEscrow, batchFinishEscrows } from "./escrow";
+import { liquidGetTicker, liquidGetOrder, isLiquidConfigured } from "./liquid";
+
+/**
+ * Compute P&L from Liquid if the proposal has a tracked order.
+ * Returns the return multiplier (e.g. 1.18 for +18%).
+ */
+async function computeLiquidReturn(proposal: {
+  liquidSymbol?: string;
+  liquidEntryPrice?: number;
+  liquidOrderId?: string;
+  side: string;
+}): Promise<number | null> {
+  if (!proposal.liquidSymbol || !proposal.liquidEntryPrice || !isLiquidConfigured()) {
+    return null;
+  }
+  try {
+    const ticker = await liquidGetTicker(proposal.liquidSymbol);
+    const currentPrice = Number(ticker.mark_price);
+    const entryPrice = proposal.liquidEntryPrice;
+    const isLong = proposal.side === "long" || proposal.side === "yes";
+    const pnlPercent = isLong
+      ? (currentPrice - entryPrice) / entryPrice
+      : (entryPrice - currentPrice) / entryPrice;
+    return 1 + pnlPercent;
+  } catch (err: any) {
+    console.warn(`Could not fetch Liquid P&L: ${err.message}`);
+    return null;
+  }
+}
 
 /**
  * Settle a single proposal after event resolution.
  * 1. Finish the escrow (releases locked funds back to vault wallet)
  * 2. Calculate each member's payout based on their share
  * 3. Distribute payouts to members' personal wallets
+ *
+ * If returnMultiplier is not provided and the proposal has a Liquid position,
+ * the multiplier is computed from the current market price vs entry price.
  */
 export async function settleProposal(
   proposalId: string,
   outcome: "win" | "loss",
-  returnMultiplier: number
+  returnMultiplier?: number
 ): Promise<SettlementResult> {
   const proposal = store.getProposal(proposalId);
   if (!proposal) throw new Error("Proposal not found");
@@ -27,14 +59,22 @@ export async function settleProposal(
   const escrow = store.getEscrowByProposal(proposalId);
   if (!escrow) throw new Error("No escrow found for this proposal");
 
-  // Step 1: Finish escrow to release funds back to vault wallet
+  // Compute return from Liquid if not manually provided
+  let multiplier = returnMultiplier ?? 1.0;
+  if (returnMultiplier == null) {
+    const liquidReturn = await computeLiquidReturn(proposal);
+    if (liquidReturn !== null) {
+      multiplier = liquidReturn;
+      if (multiplier < 1) outcome = "loss";
+    }
+  }
+
   await finishEscrow(escrow.id);
 
-  // Step 2: Calculate payouts
   const tradeAmount = proposal.amount;
   const totalPayout = outcome === "win"
-    ? tradeAmount * returnMultiplier
-    : 0;
+    ? tradeAmount * multiplier
+    : tradeAmount * Math.max(0, multiplier);
 
   const totalDeposited = group.members.reduce((s, m) => s + m.depositedAmount, 0);
   const vaultWallet = Wallet.fromSeed(group.vaultWalletSeed);
