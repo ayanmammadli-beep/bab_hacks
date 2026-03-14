@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Liquid API Demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 1.5rem; background: #0d0d0d; color: #e5e5e5; }
+    h1 { font-size: 1.35rem; margin-bottom: 0.5rem; }
+    p { color: #888; margin: 0 0 1rem; font-size: 0.9rem; }
+    section { background: #1a1a1a; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+    section h2 { font-size: 0.95rem; margin: 0 0 0.75rem; color: #aaa; }
+    pre { background: #111; padding: 0.75rem; border-radius: 6px; overflow: auto; font-size: 0.8rem; margin: 0; }
+    .row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+    button { background: #333; color: #fff; border: none; padding: 0.5rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+    button:hover { background: #444; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .err { color: #f87171; }
+    .ok { color: #4ade80; }
+  </style>
+</head>
+<body>
+  <h1>Liquid API demo</h1>
+  <p>Uses your local server (API keys stay in .env on the server). Refresh data or place/cancel a test order.</p>
+
+  <section>
+    <h2>Markets</h2>
+    <div class="row">
+      <button type="button" id="btnMarkets">Load markets</button>
+    </div>
+    <pre id="markets">—</pre>
+  </section>
+
+  <section>
+    <h2>Balance</h2>
+    <div class="row">
+      <button type="button" id="btnBalance">Load balance</button>
+    </div>
+    <pre id="balance">—</pre>
+  </section>
+
+  <section>
+    <h2>Open orders</h2>
+    <div class="row">
+      <button type="button" id="btnOrders">Load open orders</button>
+    </div>
+    <pre id="orders">—</pre>
+  </section>
+
+  <section>
+    <h2>Place test order</h2>
+    <p style="margin-bottom: 0.5rem;">Limit buy $10 @ 10000 (BTC-PERP, won’t fill). Min order $10.</p>
+    <div class="row">
+      <button type="button" id="btnPlace">Place test order</button>
+    </div>
+    <pre id="placeResult">—</pre>
+  </section>
+
+  <section>
+    <h2>Cancel order</h2>
+    <p style="margin-bottom: 0.5rem;">Cancel by order ID (from open orders).</p>
+    <div class="row">
+      <input type="text" id="orderId" placeholder="Order ID" style="padding: 0.5rem; border-radius: 6px; border: 1px solid #333; background: #111; color: #e5e5e5; min-width: 180px;" />
+      <button type="button" id="btnCancel">Cancel</button>
+    </div>
+    <pre id="cancelResult">—</pre>
+  </section>
+
+  <script>
+    const api = (path, opts = {}) => fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...opts.headers } }).then(r => r.json());
+
+    function set(id, text, isErr) {
+      const el = document.getElementById(id);
+      el.textContent = text;
+      el.className = isErr ? 'err' : '';
+    }
+
+    document.getElementById('btnMarkets').onclick = async () => {
+      set('markets', 'Loading…');
+      const r = await api('/api/markets');
+      set('markets', r.ok ? JSON.stringify(r.data?.slice?.(0, 12) ?? r.data, null, 2) : r.error, !r.ok);
+    };
+
+    document.getElementById('btnBalance').onclick = async () => {
+      set('balance', 'Loading…');
+      const r = await api('/api/balance');
+      set('balance', r.ok ? JSON.stringify(r.data, null, 2) : r.error, !r.ok);
+    };
+
+    document.getElementById('btnOrders').onclick = async () => {
+      set('orders', 'Loading…');
+      const r = await api('/api/orders');
+      set('orders', r.ok ? JSON.stringify(r.data, null, 2) : r.error, !r.ok);
+    };
+
+    document.getElementById('btnPlace').onclick = async () => {
+      set('placeResult', 'Placing…');
+      const r = await api('/api/orders', { method: 'POST', body: JSON.stringify({ symbol: 'BTC-PERP', side: 'buy', quantity: 10, price: 10000 }) });
+      set('placeResult', r.ok ? JSON.stringify(r.data, null, 2) : r.error, !r.ok);
+      if (r.ok && r.data?.order_id) document.getElementById('orderId').value = r.data.order_id;
+    };
+
+    document.getElementById('btnCancel').onclick = async () => {
+      const id = document.getElementById('orderId').value.trim();
+      if (!id) { set('cancelResult', 'Enter an order ID', true); return; }
+      set('cancelResult', 'Cancelling…');
+      const r = await api(`/api/orders/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+      set('cancelResult', r.ok ? 'Cancelled.' : r.error, !r.ok);
+      if (r.ok) document.getElementById('btnOrders').click();
+    };
+  </script>
+</body>
+</html>

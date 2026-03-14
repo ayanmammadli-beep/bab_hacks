@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Wallet {
+  id          String   @id @default(cuid())
+  groupChatId String   @unique
+  address     String
+  privateKey  String   // encrypted at rest
+  createdAt   DateTime @default(now())
+
+  @@map("wallets")
+}
+
+model Proposal {
+  id             String       @id @default(cuid())
+  groupChatId    String
+  marketId       String
+  /// Optional side, only used for binary YES/NO markets
+  side           String?      // YES | NO
+  /// Polymarket outcome token id for this proposal
+  outcomeTokenId String?
+  /// Human-readable outcome label from Polymarket (e.g. candidate name)
+  outcomeLabel   String?
+  amount         Decimal     @db.Decimal(36, 18)
+  proposer       String
+  approvalWeight Decimal     @db.Decimal(10, 4) @default(0)
+  rejectWeight   Decimal     @db.Decimal(10, 4) @default(0)
+  status         ProposalStatus @default(VOTING)
+  createdAt      DateTime    @default(now())
+  deadline       DateTime
+
+  votes Vote[]
+
+  @@index([groupChatId])
+  @@index([status, deadline])
+  @@map("proposals")
+}
+
+enum ProposalStatus {
+  VOTING
+  APPROVED
+  REJECTED
+  EXECUTED
+  EXPIRED
+}
+
+model Vote {
+  id         String   @id @default(cuid())
+  proposalId String
+  userId     String
+  vote       String   // approve | reject
+  weight     Decimal  @db.Decimal(10, 4)
+
+  proposal Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@unique([proposalId, userId])
+  @@index([proposalId])
+  @@map("votes")
+}
+
+model Position {
+  id          String         @id @default(cuid())
+  groupChatId String
+  marketId    String
+  /// Optional side, only used for binary YES/NO markets
+  side        String?        // YES | NO
+  /// Polymarket outcome token id this position is in
+  outcomeTokenId String?
+  /// Human-readable outcome label from Polymarket (e.g. candidate name)
+  outcomeLabel   String?
+  shares      Decimal        @db.Decimal(36, 18)
+  avgPrice    Decimal        @db.Decimal(36, 18)
+  currentPrice Decimal       @db.Decimal(36, 18)
+  status      PositionStatus @default(OPEN)
+  executedAt  DateTime       @default(now())
+  closedAt    DateTime?
+  txHash      String?
+
+  @@index([groupChatId])
+  @@index([marketId, groupChatId, status])
+  @@map("positions")
+}
+
+enum PositionStatus {
+  OPEN
+  CLOSED
+}
+
+// --- Off-chain group prediction markets ---
+
+model PredictionMarketProposal {
+  id                    String    @id @default(cuid())
+  groupChatId           String
+  description           String
+  eventDeadline         DateTime
+  initialLiquidityAmount Decimal  @db.Decimal(36, 18)
+  proposer              String
+  approvalWeight        Decimal   @db.Decimal(10, 4) @default(0)
+  rejectWeight          Decimal   @db.Decimal(10, 4) @default(0)
+  status                PredictionProposalStatus @default(VOTING)
+  deadline              DateTime  // voting deadline
+  createdAt             DateTime  @default(now())
+
+  votes PredictionMarketProposalVote[]
+
+  @@index([groupChatId])
+  @@index([status, deadline])
+  @@map("prediction_market_proposals")
+}
+
+enum PredictionProposalStatus {
+  VOTING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+model PredictionMarketProposalVote {
+  id         String   @id @default(cuid())
+  proposalId String
+  userId     String
+  vote       String   // approve | reject
+  weight     Decimal  @db.Decimal(10, 4)
+
+  proposal PredictionMarketProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@unique([proposalId, userId])
+  @@index([proposalId])
+  @@map("prediction_market_proposal_votes")
+}
+
+model PredictionMarket {
+  id                    String    @id @default(cuid())
+  proposalId            String?   @unique
+  groupChatId           String
+  description           String
+  eventDeadline         DateTime
+  initialLiquidityAmount Decimal  @db.Decimal(36, 18)
+  status                PredictionMarketStatus @default(ACTIVE)
+  createdAt             DateTime  @default(now())
+  resolutionOpenedAt    DateTime?
+  resolvedAt            DateTime?
+  winningSide           String?   // YES | NO
+
+  bets    PredictionBet[]
+  resolutionVotes PredictionResolutionVote[]
+  payouts PredictionPayout[]
+
+  @@index([groupChatId])
+  @@index([status])
+  @@index([eventDeadline])
+  @@map("prediction_markets")
+}
+
+enum PredictionMarketStatus {
+  ACTIVE          // betting open
+  RESOLUTION_OPEN // 24h window
+  RESOLVED
+}
+
+model PredictionBet {
+  id        String   @id @default(cuid())
+  marketId  String
+  userId    String
+  amount    Decimal   @db.Decimal(36, 18)
+  side      String    // YES | NO
+  createdAt DateTime @default(now())
+
+  market PredictionMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([marketId])
+  @@index([marketId, userId])
+  @@map("prediction_bets")
+}
+
+model PredictionResolutionVote {
+  id        String   @id @default(cuid())
+  marketId  String
+  userId    String
+  outcome   String   // YES | NO
+  createdAt DateTime @default(now())
+
+  market PredictionMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@unique([marketId, userId])
+  @@index([marketId])
+  @@map("prediction_resolution_votes")
+}
+
+model PredictionPayout {
+  id        String   @id @default(cuid())
+  marketId  String
+  userId    String
+  amount    Decimal   @db.Decimal(36, 18)
+  createdAt DateTime  @default(now())
+
+  market PredictionMarket @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@index([marketId])
+  @@index([marketId, userId])
+  @@map("prediction_payouts")
+}

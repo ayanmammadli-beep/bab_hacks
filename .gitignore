@@ -1,4 +1,10 @@
+# Dependencies and build output
 node_modules/
 dist/
+
+# Environment and secrets (never commit)
 .env
+.env.local
+.env.*.local
 *.log
+.DS_Store

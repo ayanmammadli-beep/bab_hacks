@@ -5,17 +5,26 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/src/index.js",
     "smoke": "tsx test/smoke.ts",
     "smoke:dry": "npm run build && node dist/test/smoke-dry.js",
-    "demo": "tsx server/demo.ts"
+    "demo": "tsx server/demo.ts",
+    "test:prediction": "tsx scripts/test-prediction-markets.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@polymarket/clob-client": "^5.8.0",
+    "@prisma/client": "^6.9.0",
+    "axios": "^1.7.9",
     "dotenv": "^16.4.5",
+    "ethers": "^5.8.0",
     "express": "^4.21.1"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.1",
+    "prisma": "^6.9.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
