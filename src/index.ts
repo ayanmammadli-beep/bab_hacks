@@ -1,0 +1,21 @@
+import "dotenv/config";
+import express from "express";
+import { config } from "./config";
+import marketsRouter from "./routes/markets";
+import proposalsRouter from "./routes/proposals";
+import positionsRouter from "./routes/positions";
+
+const app = express();
+app.use(express.json());
+
+app.use("/markets", marketsRouter);
+app.use("/proposals", proposalsRouter);
+app.use("/positions", positionsRouter);
+
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });
+});
+
+app.listen(config.port, () => {
+  console.log(`Polymarket group bot API listening on port ${config.port}`);
+});
