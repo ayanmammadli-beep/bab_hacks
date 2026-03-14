@@ -1,14 +1,14 @@
 import { PrismaClient, ProposalStatus, PositionStatus } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
-import { config } from "../config";
-import { getOrCreateWallet, getDecryptedPrivateKey } from "./walletService";
+import { config } from "../config.js";
+import { getOrCreateWallet, getDecryptedPrivateKey } from "./walletService.js";
 import {
   getMarketById,
   getTokenIdForSide,
   getOutcomeByTokenId,
   getCurrentPriceForToken,
-} from "./polymarketService";
-import { executeBuyOrder, executeSellOrder } from "./polymarketClobService";
+} from "./polymarketService.js";
+import { executeBuyOrder, executeSellOrder } from "./polymarketClobService.js";
 
 const prisma = new PrismaClient();
 

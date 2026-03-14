@@ -12,6 +12,6 @@
     "declarationMap": true,
     "sourceMap": true
   },
-  "include": ["liquid/**/*.ts", "test/**/*.ts", "server/**/*.ts"],
+  "include": ["src/**/*.ts", "liquid/**/*.ts", "test/**/*.ts", "server/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

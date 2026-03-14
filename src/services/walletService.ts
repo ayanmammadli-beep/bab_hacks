@@ -1,7 +1,7 @@
 import { Wallet as EthersWallet } from "ethers";
 import { PrismaClient } from "@prisma/client";
-import { config } from "../config";
-import { encrypt, decrypt } from "../lib/crypto";
+import { config } from "../config.js";
+import { encrypt, decrypt } from "../lib/crypto.js";
 
 const prisma = new PrismaClient();
 

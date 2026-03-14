@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { getMarkets, getMarketById } from "../services/polymarketService";
+import { getMarkets, getMarketById } from "../services/polymarketService.js";
 
 const router = Router();
 

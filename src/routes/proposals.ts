@@ -4,7 +4,7 @@ import {
   listProposals,
   voteOnProposal,
   executeProposal,
-} from "../services/tradeService";
+} from "../services/tradeService.js";
 
 const router = Router();
 

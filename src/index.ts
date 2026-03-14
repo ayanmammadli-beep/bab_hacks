@@ -1,9 +1,9 @@
 import "dotenv/config";
 import express from "express";
-import { config } from "./config";
-import marketsRouter from "./routes/markets";
-import proposalsRouter from "./routes/proposals";
-import positionsRouter from "./routes/positions";
+import { config } from "./config.js";
+import marketsRouter from "./routes/markets.js";
+import proposalsRouter from "./routes/proposals.js";
+import positionsRouter from "./routes/positions.js";
 
 const app = express();
 app.use(express.json());

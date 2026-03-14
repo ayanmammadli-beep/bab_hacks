@@ -1,7 +1,7 @@
 import { ClobClient, Side, OrderType } from "@polymarket/clob-client";
 import { Wallet } from "ethers";
-import { config } from "../config";
-import { getMarketById, getMarketOrderParams, type GammaMarket } from "./polymarketService";
+import { config } from "../config.js";
+import { getMarketById, getMarketOrderParams, type GammaMarket } from "./polymarketService.js";
 
 const CLOB_HOST = config.polymarket.clobHost;
 const CHAIN_ID = config.polymarket.chainId;

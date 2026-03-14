@@ -1,5 +1,5 @@
 import axios from "axios";
-import { config } from "../config";
+import { config } from "../config.js";
 
 const gamma = axios.create({
   baseURL: config.polymarket.gammaHost,

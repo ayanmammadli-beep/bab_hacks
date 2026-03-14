@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { listPositions, closePosition } from "../services/tradeService";
+import { listPositions, closePosition } from "../services/tradeService.js";
 
 const router = Router();
 
