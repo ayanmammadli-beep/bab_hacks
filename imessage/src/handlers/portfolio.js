@@ -3,25 +3,34 @@ const backend = require('../backend');
 
 /**
  * /portfolio
- * Shows the fund's current portfolio.
+ * Shows both the reserve vault (XRPL, drives voting) and the trading vault (positions).
  */
 async function portfolio(_args, { chatId }) {
   const result = await backend.getPortfolio({ chatId });
+  const { reserve, trading } = result;
 
-  if (!result.positions || result.positions.length === 0) {
-    return responder.send(chatId, `portfolio empty. the fund is just vibing with $${result.totalValue.toFixed(2)} in cash.\n\npropose something with /propose_trade 👀`);
-  }
+  // ── Reserve vault ──────────────────────────────────────────────────────────
+  const reserveLines = reserve.members.length > 0
+    ? reserve.members.map(m =>
+        `  ${m.handle}: ${m.amount.toFixed(2)} XRP (${(m.votingWeight * 100).toFixed(1)}% vote)`
+      )
+    : ['  no deposits yet'];
 
-  const lines = result.positions.map(
-    (p) => `• ${p.name}: ${p.value >= 0 ? '+' : ''}$${p.value.toFixed(2)} (${p.pct >= 0 ? '+' : ''}${p.pct.toFixed(1)}%)`
-  );
+  // ── Trading vault ──────────────────────────────────────────────────────────
+  const tradingLines = trading.positions.length > 0
+    ? trading.positions.map(p =>
+        `  • ${p.name}: ${p.value >= 0 ? '+' : ''}$${p.value.toFixed(2)} (${p.pct >= 0 ? '+' : ''}${p.pct.toFixed(1)}%)`
+      )
+    : ['  no open positions'];
 
   const reply =
-    `Portfolio\n` +
-    `───────────────\n` +
-    lines.join('\n') +
-    `\n───────────────\n` +
-    `Total: $${result.totalValue.toFixed(2)}  (${result.totalPct >= 0 ? '+' : ''}${result.totalPct.toFixed(1)}%)`;
+    `Reserve Vault (XRPL)\n` +
+    `${reserveLines.join('\n')}\n` +
+    `Total: ${reserve.total.toFixed(2)} XRP\n` +
+    `\n` +
+    `Trading Vault\n` +
+    `${tradingLines.join('\n')}\n` +
+    `Total: $${trading.total.toFixed(2)} ${trading.currency}`;
 
   await responder.send(chatId, reply);
 }
