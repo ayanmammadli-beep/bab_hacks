@@ -5,5 +5,6 @@ const vote = require('./vote');
 const portfolio = require('./portfolio');
 const chatCreated = require('./chatCreated');
 const reaction = require('./reaction');
+const myWallet = require('./myWallet');
 
-module.exports = { createFund, deposit, proposeTrade, vote, portfolio, chatCreated, reaction };
+module.exports = { createFund, deposit, proposeTrade, vote, portfolio, chatCreated, reaction, myWallet };

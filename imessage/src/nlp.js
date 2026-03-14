@@ -74,6 +74,15 @@ const COMMAND_TOOLS = [
     },
   },
   {
+    name: 'my_wallet',
+    description: 'User wants to see their own XRP wallet address or deposit/top-up link. Use when they say things like "send me my wallet", "what\'s my address", "how do I deposit", "give me my link".',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+  {
     name: 'ignore',
     description: 'The message is casual conversation, a question not related to the fund, or something the bot cannot help with. Use this when none of the other commands apply.',
     input_schema: {
@@ -147,6 +156,8 @@ async function interpret(text, senderHandle) {
       return { command: '/vote', args: [input.choice] };
     case 'portfolio':
       return { command: '/portfolio', args: [] };
+    case 'my_wallet':
+      return { command: '/my_wallet', args: [] };
     case 'ignore':
       // Return a special marker so the router can send a reply if needed
       return { command: '/ignore', args: [], reply: input.reply ?? '' };

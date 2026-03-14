@@ -2,6 +2,7 @@ const parser = require('./parser');
 const responder = require('./responder');
 const handlers = require('./handlers');
 const nlp = require('./nlp');
+const wallets = require('./wallets');
 
 /**
  * Extracts message text from the LINQ v3 webhook event payload.
@@ -22,6 +23,9 @@ async function dispatch(event) {
   const chatId = event?.data?.chat?.id;
   const senderHandle = event?.data?.sender_handle?.handle ?? 'unknown';
   const text = extractText(event);
+
+  // Provision wallet on first message from this number
+  if (senderHandle !== 'unknown') wallets.getOrCreate(senderHandle);
 
   console.log(`[${chatId}] ${senderHandle}: ${text}`);
 
@@ -47,6 +51,8 @@ async function dispatch(event) {
       return handlers.vote(parsed.args, context);
     case '/portfolio':
       return handlers.portfolio(parsed.args, context);
+    case '/my_wallet':
+      return handlers.myWallet(parsed.args, context);
     case '/unknown':
       return responder.send(chatId, unknownCommandMessage(parsed.raw));
     case '/ignore':
