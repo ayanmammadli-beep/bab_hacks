@@ -12,6 +12,7 @@ model Wallet {
   groupChatId String   @unique
   address     String
   privateKey  String   // encrypted at rest
+  usdcBalance Decimal  @db.Decimal(36, 18) @default(0)
   createdAt   DateTime @default(now())
 
   @@map("wallets")

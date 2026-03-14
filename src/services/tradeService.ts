@@ -1,7 +1,7 @@
 import { PrismaClient, ProposalStatus, PositionStatus } from "@prisma/client";
 import { Decimal } from "@prisma/client/runtime/library";
 import { config } from "../config.js";
-import { getOrCreateWallet, getDecryptedPrivateKey } from "./walletService.js";
+import { getOrCreateWallet, getDecryptedPrivateKey, deductUsdcBalance } from "./walletService.js";
 import {
   getMarketById,
   getTokenIdForSide,
@@ -229,6 +229,14 @@ export async function executeProposal(proposalId: string): Promise<{
     return { status: "insufficient_approval" };
   }
 
+  // Check the group's Polygon wallet has enough USDC before placing any trade.
+  const wallet = await prisma.wallet.findUnique({ where: { groupChatId: proposal.groupChatId } });
+  const tradeAmount = toNum(proposal.amount);
+  if (!wallet || Number(wallet.usdcBalance) < tradeAmount) {
+    const have = wallet ? Number(wallet.usdcBalance) : 0;
+    throw new Error(`Insufficient USDC balance: wallet has ${have} USDC, proposal requires ${tradeAmount} USDC. Fund the wallet first via POST /wallets/:groupChatId/fund`);
+  }
+
   const anyProposal: any = proposal;
   const market = await getMarketById(proposal.marketId);
   if (!market) throw new Error("Market not found");
@@ -253,6 +261,9 @@ export async function executeProposal(proposalId: string): Promise<{
   if (!result.success) {
     throw new Error(result.error ?? "Trade execution failed");
   }
+
+  // Deduct USDC from the wallet's tracked balance now that the trade went through.
+  await deductUsdcBalance(proposal.groupChatId, tradeAmount);
 
   const amountNum = toNum(proposal.amount);
   const shares = amountNum / price;
