@@ -23,13 +23,18 @@ const COMMAND_TOOLS = [
   },
   {
     name: 'deposit',
-    description: 'User wants to deposit or add money to the fund. Use when they mention putting in money, adding funds, depositing, contributing an amount.',
+    description: 'User wants to deposit money into one of the two fund vaults. Use when they mention putting in money, adding funds, depositing, contributing an amount. There are two vaults: the VOTING vault (XRPL reserve vault — deposits here give more voting power/weight) and the TRADING vault (used for actual trades on Polymarket/Liquid). Detect which vault they want from context. Examples: "deposit 500 into the voting pool", "i want more voting power", "fade you lemme put 500 in the vote vault" → vault: voting. "add 200 to the trading fund", "put money in for trades", "top up the trading pool" → vault: trading. If unclear which vault they want, set vault to null.',
     input_schema: {
       type: 'object',
       properties: {
         amount: {
           type: 'number',
-          description: 'Amount to deposit in USD. Extract the number from the message.',
+          description: 'Amount to deposit. Extract the number from the message.',
+        },
+        vault: {
+          type: 'string',
+          enum: ['voting', 'trading'],
+          description: '"voting" for the XRPL reserve vault (increases voting power), "trading" for the trading vault (funds actual trades). Infer from message context.',
         },
       },
       required: ['amount'],
@@ -104,7 +109,7 @@ Your job is to understand what a group member wants and call the right command t
 
 Fund commands available:
 - createfund: Start a new group fund
-- deposit: Put money into the fund
+- deposit: Put money into one of two vaults — the VOTING vault (XRPL, gives voting power) or the TRADING vault (funds actual trades)
 - propose_trade: Suggest a trade for everyone to vote on
 - vote: Vote yes or no on the current proposal
 - portfolio: Check fund holdings and performance
@@ -149,7 +154,7 @@ async function interpret(text, senderHandle) {
     case 'createfund':
       return { command: '/createfund', args: input.name ? [input.name] : [] };
     case 'deposit':
-      return { command: '/deposit', args: [String(input.amount)] };
+      return { command: '/deposit', args: [String(input.amount), input.vault ?? ''] };
     case 'propose_trade':
       return { command: '/propose_trade', args: input.description.split(' ') };
     case 'vote':
