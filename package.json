@@ -10,6 +10,7 @@
     "smoke": "tsx test/smoke.ts",
     "smoke:dry": "npm run build && node dist/test/smoke-dry.js",
     "demo": "tsx server/demo.ts",
+    "test:prediction": "tsx scripts/test-prediction-markets.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

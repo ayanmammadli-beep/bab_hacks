@@ -16,4 +16,12 @@ export const config = {
   voting: {
     defaultApprovalWeight: parseFloat(getEnv("DEFAULT_APPROVAL_WEIGHT", "0.6")),
   },
+  predictionMarket: {
+    /** Approval threshold (0–1) to create a market from a proposal. */
+    approvalThreshold: parseFloat(getEnv("PREDICTION_APPROVAL_THRESHOLD", "0.6")),
+    /** Resolution threshold (0–1) to resolve immediately when one side reaches it during 24h window. */
+    resolutionThreshold: parseFloat(getEnv("PREDICTION_RESOLUTION_THRESHOLD", "0.6")),
+    /** Hours after event deadline before resolution window closes (then resolve by majority). */
+    resolutionWindowHours: parseInt(getEnv("PREDICTION_RESOLUTION_WINDOW_HOURS", "24"), 10),
+  },
 } as const;
