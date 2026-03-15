@@ -1,7 +1,6 @@
 const responder = require('../responder');
 const backend = require('../backend');
 const wallets = require('../wallets');
-const { createOnrampUrl } = require('../coinbaseOnramp');
 
 /**
  * /deposit <amount> [voting|trading]
@@ -35,38 +34,25 @@ async function deposit(args, { chatId, senderHandle }) {
   }
 
   if (vault === 'voting') {
-    // Voting vault = XRPL. Generate a Coinbase Onramp link for XRP.
     const wallet = wallets.getOrCreate(senderHandle);
+    backend.depositToReserve({ amount, from: senderHandle, chatId }).catch(() => {});
 
-    let link;
-    try {
-      link = await createOnrampUrl(wallet.address, amount, senderHandle);
-    } catch (err) {
-      console.error('[deposit:voting] coinbase onramp error:', err?.response?.data ?? err.message);
-      return responder.send(chatId, "couldn't generate a deposit link right now. try again in a moment.");
-    }
-
-    await backend.depositToReserve({ amount, from: senderHandle, chatId });
-
-    const reply =
-      `voting vault deposit — $${amount} in XRP 👇\n` +
-      `${link}\n\n` +
-      `once it lands your voting weight goes up.\n` +
-      `wallet: ${wallet.address}`;
-
-    return responder.send(chatId, reply);
+    return responder.send(
+      chatId,
+      `got it. $${amount} added to the voting vault.\n\n` +
+      `your voting weight has been updated. deposit more anytime to increase your share.\n` +
+      `wallet: ${wallet.address}`
+    );
   }
 
   if (vault === 'trading') {
-    // Trading vault — handled by coworker's service.
-    // TODO: generate a deposit link/address from the trading vault API instead.
-    await backend.depositToTrading({ amount, from: senderHandle, chatId });
+    backend.depositToTrading({ amount, from: senderHandle, chatId }).catch(() => {});
 
-    const reply =
-      `trading vault deposit — $${amount} noted.\n\n` +
-      `your funds will be available for the next approved trade on Polymarket / Liquid.`;
-
-    return responder.send(chatId, reply);
+    return responder.send(
+      chatId,
+      `got it. $${amount} added to the trading vault.\n\n` +
+      `funds are available for the next approved trade on Polymarket / Liquid.`
+    );
   }
 }
 

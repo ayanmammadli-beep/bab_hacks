@@ -3,6 +3,7 @@ const responder = require('./responder');
 const handlers = require('./handlers');
 const nlp = require('./nlp');
 const wallets = require('./wallets');
+const store = require('./store');
 
 /**
  * Extracts message text from the LINQ v3 webhook event payload.
@@ -24,21 +25,27 @@ async function dispatch(event) {
   const senderHandle = event?.data?.sender_handle?.handle ?? 'unknown';
   const text = extractText(event);
 
-  // Provision wallet on first message from this number
-  if (senderHandle !== 'unknown') wallets.getOrCreate(senderHandle);
+  // Provision wallet and track membership on first message from this number
+  if (senderHandle !== 'unknown') {
+    wallets.getOrCreate(senderHandle);
+    store.addChatMember(chatId, senderHandle);
+  }
 
   console.log(`[${chatId}] ${senderHandle}: ${text}`);
 
   // Try slash command parser first; fall back to NLP for plain English
   let parsed = parser.parse(text);
   if (!parsed) {
-    // Only invoke NLP if the message is clearly addressed to TARS
-    if (!/\btars\b/i.test(text)) return;
+    const activeProposal = store.getProposal(chatId);
+    const addressedToTars = /\btars\b/i.test(text);
+    // Respond if addressed to TARS, or if there's an active proposal
+    // (lets members vote / follow-up without typing "tars" every time)
+    if (!addressedToTars && !activeProposal) return;
     parsed = await nlp.interpret(text, senderHandle);
   }
   if (!parsed) return;
 
-  const context = { chatId, senderHandle, event };
+  const context = { chatId, senderHandle, event, data: parsed.data ?? {} };
 
   switch (parsed.command) {
     case '/createfund':
@@ -53,6 +60,8 @@ async function dispatch(event) {
       return handlers.portfolio(parsed.args, context);
     case '/my_wallet':
       return handlers.myWallet(parsed.args, context);
+    case '/voter_allocation':
+      return handlers.voterAllocation(parsed.args, context);
     case '/unknown':
       return responder.send(chatId, unknownCommandMessage(parsed.raw));
     case '/ignore':

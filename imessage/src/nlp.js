@@ -42,16 +42,34 @@ const COMMAND_TOOLS = [
   },
   {
     name: 'propose_trade',
-    description: 'User wants to propose a trade for the group to vote on. Use when they suggest buying/selling something, mention a prediction market bet, or propose an investment.',
+    description: 'User wants to propose a trade for the group to vote on. Use when they suggest buying/selling something, mention a prediction market bet, or propose an investment. Classify as "polymarket" for prediction market bets (election outcomes, sports, events) or "liquid" for crypto derivatives (BTC, ETH, perpetuals, leverage trading).',
     input_schema: {
       type: 'object',
       properties: {
         description: {
           type: 'string',
-          description: 'Full description of the trade proposal exactly as the user described it.',
+          description: 'Full human-readable description of the trade, e.g. "Trump wins 2024 election" or "Long BTC-PERP".',
+        },
+        type: {
+          type: 'string',
+          enum: ['polymarket', 'liquid'],
+          description: '"polymarket" for prediction market bets on real-world events. "liquid" for crypto perpetuals/derivatives.',
+        },
+        market: {
+          type: 'string',
+          description: 'For polymarket: a short search query to find the market, e.g. "trump wins election". For liquid: the trading symbol, e.g. "BTC-PERP".',
+        },
+        side: {
+          type: 'string',
+          enum: ['yes', 'no', 'long', 'short'],
+          description: 'For polymarket: "yes" or "no". For liquid: "long" or "short".',
+        },
+        amount: {
+          type: 'number',
+          description: 'Dollar amount to trade. Extract from the message.',
         },
       },
-      required: ['description'],
+      required: ['description', 'type', 'market', 'side', 'amount'],
     },
   },
   {
@@ -88,6 +106,15 @@ const COMMAND_TOOLS = [
     },
   },
   {
+    name: 'voter_allocation',
+    description: 'User wants to see who has how much voting power, each member\'s share of the voting vault, or how votes are weighted. Use when they ask things like "who has the most votes", "what\'s everyone\'s voting share", "what\'s the voter allocation", "how much voting power does X have", "show me the voting breakdown".',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+  {
     name: 'ignore',
     description: 'The message is casual conversation, a question not related to the fund, or something the bot cannot help with. Use this when none of the other commands apply.',
     input_schema: {
@@ -110,7 +137,7 @@ Your job is to understand what a group member wants and call the right command t
 Fund commands available:
 - createfund: Start a new group fund
 - deposit: Put money into one of two vaults — the VOTING vault (XRPL, gives voting power) or the TRADING vault (funds actual trades)
-- propose_trade: Suggest a trade for everyone to vote on
+- propose_trade: Suggest a trade — either a Polymarket prediction bet (elections, sports, events) or a Liquid crypto derivatives trade (BTC/ETH perpetuals)
 - vote: Vote yes or no on the current proposal
 - portfolio: Check fund holdings and performance
 
@@ -156,13 +183,25 @@ async function interpret(text, senderHandle) {
     case 'deposit':
       return { command: '/deposit', args: [String(input.amount), input.vault ?? ''] };
     case 'propose_trade':
-      return { command: '/propose_trade', args: input.description.split(' ') };
+      return {
+        command: '/propose_trade',
+        args: [],
+        data: {
+          description: input.description,
+          type: input.type,
+          market: input.market,
+          side: input.side,
+          amount: input.amount,
+        },
+      };
     case 'vote':
       return { command: '/vote', args: [input.choice] };
     case 'portfolio':
       return { command: '/portfolio', args: [] };
     case 'my_wallet':
       return { command: '/my_wallet', args: [] };
+    case 'voter_allocation':
+      return { command: '/voter_allocation', args: [] };
     case 'ignore':
       // Return a special marker so the router can send a reply if needed
       return { command: '/ignore', args: [], reply: input.reply ?? '' };

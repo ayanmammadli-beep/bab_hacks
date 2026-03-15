@@ -2,32 +2,51 @@ const responder = require('../responder');
 const backend = require('../backend');
 
 /**
- * /propose_trade <description>
- * Proposes a trade for the group to vote on.
+ * /propose_trade
  *
- * Example: /propose_trade Buy $500 YES ETH > $4000 Dec 2026
+ * Structured data (from NLP) expected in context.data:
+ *   { description, type: 'polymarket'|'liquid', market, side, amount }
  */
-async function proposeTrade(args, { chatId, senderHandle }) {
-  if (args.length === 0) {
+async function proposeTrade(args, { chatId, senderHandle, data }) {
+  const { description, type, market, side, amount } = data;
+
+  if (!description || !type || !market || !side || !amount) {
     return responder.send(
       chatId,
-      'Usage: /propose_trade <description>\nExample: /propose_trade Buy $500 YES ETH > $4000 Dec 2026'
+      'what do you want to trade?\n\n' +
+      'prediction market: "bet 50 on Trump winning the election"\n' +
+      'crypto derivatives: "long 100 on BTC-PERP"'
     );
   }
 
-  const description = args.join(' ');
-  const result = await backend.proposeTrade({ description, proposedBy: senderHandle, chatId });
+  let proposal;
+  try {
+    proposal = await backend.proposeTrade({
+      chatId,
+      proposedBy: senderHandle,
+      type,
+      description,
+      market,
+      side,
+      amount,
+    });
+  } catch (err) {
+    const msg = err?.response?.data?.error ?? err.message;
+    return responder.send(chatId, `couldn't create proposal: ${msg}`);
+  }
+
+  const venue = type === 'polymarket' ? 'Polymarket' : 'Liquid';
+  const sideLabel = side === 'yes' || side === 'long' ? '🟢' : '🔴';
 
   const reply =
-    `ooh someone's feeling bold 👀\n\n` +
-    `"${result.description}"\n\n` +
-    `the group decides. react 👍 to send it or 👎 to kill it.\n` +
+    `${sideLabel} new proposal\n\n` +
+    `"${description}"\n` +
+    `$${amount} on ${side.toUpperCase()} via ${venue}\n\n` +
+    `react 👍 to approve or 👎 to reject.\n` +
     `or type /vote yes / /vote no`;
 
   const messageId = await responder.send(chatId, reply);
-  if (messageId) {
-    await backend.setProposalMessageId({ chatId, messageId });
-  }
+  if (messageId) await backend.setProposalMessageId({ chatId, messageId });
 }
 
 module.exports = proposeTrade;

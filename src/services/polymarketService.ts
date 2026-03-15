@@ -4,7 +4,10 @@ import { config } from "../config.js";
 const gamma = axios.create({
   baseURL: config.polymarket.gammaHost,
   timeout: 15_000,
-  headers: { "Accept": "application/json" },
+  headers: {
+    "Accept": "application/json",
+    "User-Agent": "Mozilla/5.0 (compatible; bab-hacks/1.0)",
+  },
 });
 
 export interface MarketOutcome {
@@ -52,21 +55,11 @@ function parseMarkets(data: unknown): GammaMarket[] {
  * List active markets. Optionally filter by search query.
  */
 export async function getMarkets(search?: string): Promise<GammaMarket[]> {
+  const params: Record<string, unknown> = { active: true, closed: false, limit: 20 };
   if (search && search.trim()) {
-    const { data } = await gamma.get("/public-search", {
-      params: { q: search.trim(), limit_per_type: 20 },
-    });
-    const events = (data?.events ?? []) as Array<{ markets?: GammaMarket[] }>;
-    const markets: GammaMarket[] = [];
-    for (const ev of events) {
-      if (ev.markets) markets.push(...ev.markets);
-    }
-    return markets;
+    params.q = search.trim();
   }
-
-  const { data } = await gamma.get("/markets", {
-    params: { active: true, closed: false, limit: 100 },
-  });
+  const { data } = await gamma.get("/markets", { params });
   return parseMarkets(data);
 }
 

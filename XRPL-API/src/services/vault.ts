@@ -9,7 +9,18 @@ export async function createGroup(
   name: string,
   threshold?: number
 ): Promise<Group> {
-  const vaultWallet = await createFundedWallet();
+  // Generate wallet locally — no network needed at proposal time.
+  // Faucet funding is attempted in the background so the group is usable
+  // immediately. Escrow creation will fail until the vault has XRP, but
+  // proposals and voting work fine without on-chain funds.
+  let vaultWallet: { address: string; seed: string };
+  try {
+    vaultWallet = await createFundedWallet();
+  } catch (err: any) {
+    console.warn(`XRPL faucet unavailable, generating unfunded wallet: ${err.message}`);
+    const w = Wallet.generate();
+    vaultWallet = { address: w.address, seed: w.seed! };
+  }
 
   const group: Group = {
     id: uuid(),

@@ -81,7 +81,7 @@ router.get("/:id", (req: Request, res: Response) => {
   });
 });
 
-// POST /groups/:id/members — Add a member
+// POST /groups/:id/members — Add a member (idempotent: returns existing member if handle already registered)
 router.post("/:id/members", (req: Request, res: Response) => {
   try {
     const { handle, xrplAddress } = req.body;
@@ -89,7 +89,16 @@ router.post("/:id/members", (req: Request, res: Response) => {
       res.status(400).json({ error: "handle and xrplAddress are required" });
       return;
     }
-    const member = addMember(paramStr(req.params.id), handle, xrplAddress);
+    const gid = paramStr(req.params.id);
+    const group = store.getGroup(gid);
+    if (group) {
+      const existing = group.members.find((m) => m.handle === handle);
+      if (existing) {
+        res.json(existing);
+        return;
+      }
+    }
+    const member = addMember(gid, handle, xrplAddress);
     res.status(201).json(member);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
